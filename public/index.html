@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi Panel HomeMatic</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #fff; padding: 20px; }
+    h1 { font-size: 1.4rem; text-align: center; color: #4da6ff; }
+    .card { background: #1e1e1e; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #333; }
+    .title { font-weight: bold; font-size: 1.1rem; color: #ffffff; }
+    .subtitle { font-size: 0.85rem; color: #888; margin-top: 4px; }
+    .btn { background: #007aff; color: white; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <h1>Termostatos HomeMatic</h1>
+  <button class="btn" onclick="loadDevices()">🔄 Actualizar Lista</button>
+  <div id="device-list">Cargando dispositivos...</div>
+
+  <script>
+    async function loadDevices() {
+      const container = document.getElementById('device-list');
+      container.innerHTML = 'Consultando CCU2...';
+
+      try {
+        const res = await fetch('/api/devices');
+        const data = await res.json();
+
+        if (data.error) {
+          container.innerHTML = `<p style="color:#ff5252">${data.error}</p>`;
+          return;
+        }
+
+        const devices = data.result || [];
+        container.innerHTML = '';
+
+        if (devices.length === 0) {
+          container.innerHTML = '<p>No se encontraron dispositivos.</p>';
+          return;
+        }
+
+        devices.forEach(dev => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `
+            <div class="title">${dev.name || 'Dispositivo sin nombre'}</div>
+            <div class="subtitle">Modelo: ${dev.type} | ID: ${dev.address}</div>
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        container.innerHTML = '<p style="color:#ff5252">Error al conectar con la API de Vercel.</p>';
+      }
+    }
+    loadDevices();
+  </script>
+</body>
+</html>
