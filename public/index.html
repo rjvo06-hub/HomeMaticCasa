@@ -21,22 +21,29 @@
   <script>
     async function loadDevices() {
       const container = document.getElementById('device-list');
-      container.innerHTML = 'Consultando CCU2...';
+      container.innerHTML = 'Consultando CCU2 en la red local...';
+
+      const CCU_IP = "192.168.178.37";
+      const url = `http://${CCU_IP}/api/homematic.cgi`;
+
+      const payload = {
+        method: "Device.listAllDetail",
+        params: {}
+      };
 
       try {
-        const res = await fetch('/api/devices');
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
         const data = await res.json();
-
-        if (data.error) {
-          container.innerHTML = `<p style="color:#ff5252">${data.error}</p>`;
-          return;
-        }
-
         const devices = data.result || [];
         container.innerHTML = '';
 
         if (devices.length === 0) {
-          container.innerHTML = '<p>No se encontraron dispositivos.</p>';
+          container.innerHTML = '<p>No se encontraron dispositivos en la CCU2.</p>';
           return;
         }
 
@@ -50,7 +57,11 @@
           container.appendChild(card);
         });
       } catch (err) {
-        container.innerHTML = '<p style="color:#ff5252">Error al conectar con la API de Vercel.</p>';
+        container.innerHTML = `
+          <p style="color:#ff5252">
+            No se pudo conectar a http://${CCU_IP}. <br><br>
+            Asegúrate de estar en el Wi-Fi de tu casa y de tener la CCU2 encendida.
+          </p>`;
       }
     }
     loadDevices();
