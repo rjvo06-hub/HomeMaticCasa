@@ -1,17 +1,27 @@
-HTML
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de Calefacción</title>
+  <title>Control HomeMatic</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #121212; color: #fff; padding: 20px; margin: 0; }
     h1 { font-size: 1.5rem; text-align: center; color: #4da6ff; margin-bottom: 20px; }
     .btn { background: #007aff; color: white; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-bottom: 20px; }
-    .card { background: #1e1e1e; border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #333; }
+    .card { background: #1e1e1e; border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid #333; display: flex; flex-direction: column; gap: 12px; }
+    @media (min-width: 600px) {
+      .card { flex-direction: row; justify-content: space-between; align-items: center; }
+    }
+    .info { flex-grow: 1; }
     .title { font-weight: bold; font-size: 1.1rem; color: #ffffff; }
     .subtitle { font-size: 0.85rem; color: #aaa; margin-top: 4px; }
+    .temp-control-container { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
+    .temp-badge { background: #2a2a2a; border-radius: 8px; padding: 8px 12px; text-align: center; border: 1px solid #444; min-width: 65px; }
+    .temp-value { font-size: 1.1rem; font-weight: bold; color: #ff9500; }
+    .temp-label { font-size: 0.7rem; color: #888; text-transform: uppercase; margin-top: 2px; }
+    .ctrl-btn { background: #333; color: white; border: 1px solid #555; width: 38px; height: 38px; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s; }
+    .ctrl-btn:hover { background: #007aff; border-color: #007aff; }
+    .ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .error { background: #3a1c1c; border: 1px solid #f44336; padding: 12px; border-radius: 8px; color: #ff8a80; font-size: 0.9rem; }
   </style>
 </head>
@@ -23,53 +33,73 @@ HTML
   <div id="device-list">Cargando...</div>
 
   <script>
-    const CCU_IP = "192.168.178.37";
-
     async function loadDevices() {
       const container = document.getElementById('device-list');
-      container.innerHTML = 'Consultando CCU2 en la red local...';
-
-      const url = `http://${CCU_IP}/api/homematic.cgi`;
-      const payload = {
-        method: "Device.listAllDetail",
-        params: {}
-      };
+      container.innerHTML = 'Consultando termostatos...';
 
       try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
+        const res = await fetch('/api/devices');
         const data = await res.json();
+
+        if (data.error) { throw new Error(data.error); }
+
         const devices = data.result || [];
         container.innerHTML = '';
 
         if (devices.length === 0) {
-          container.innerHTML = '<p>No se encontraron dispositivos en la CCU2.</p>';
+          container.innerHTML = '<p>No se encontraron termostatos en la CCU2.</p>';
           return;
         }
 
         devices.forEach(dev => {
           const card = document.createElement('div');
           card.className = 'card';
+          
+          const actualText = (dev.actualTemp && dev.actualTemp !== "--") ? `${dev.actualTemp} °C` : '-- °C';
+          const setTempNum = parseFloat(dev.setTemp) || 20.0;
+          const setText = (dev.setTemp && dev.setTemp !== "--") ? `${dev.setTemp} °C` : '-- °C';
+
           card.innerHTML = `
-            <div class="title">${dev.name || 'Sin Nombre'}</div>
-            <div class="subtitle">Modelo: ${dev.type} | ID: ${dev.address}</div>
+            <div class="info">
+              <div class="title">${dev.name || 'Sin Nombre'}</div>
+              <div class="subtitle">Modelo: ${dev.type || 'N/A'} | ID: ${dev.address}</div>
+            </div>
+            <div class="temp-control-container">
+              <div class="temp-badge">
+                <div class="temp-value" style="color: #4da6ff;">${actualText}</div>
+                <div class="temp-label">Actual</div>
+              </div>
+              <button class="ctrl-btn" onclick="changeTemp('${dev.id}', ${setTempNum - 0.5}, this)">-</button>
+              <div class="temp-badge">
+                <div class="temp-value" id="set-val-${dev.id}">${setText}</div>
+                <div class="temp-label">Objetivo</div>
+              </div>
+              <button class="ctrl-btn" onclick="changeTemp('${dev.id}', ${setTempNum + 0.5}, this)">+</button>
+            </div>
           `;
           container.appendChild(card);
         });
       } catch (err) {
         container.innerHTML = `
           <div class="error">
-            <strong>No se pudo conectar con la CCU2 (${CCU_IP})</strong><br><br>
-            Asegúrate de estar conectado al Wi-Fi local de tu casa.
+            <strong>Error de conexión:</strong> ${err.message}
           </div>`;
       }
     }
 
-    loadDevices();
-  </script>
-</body>
-</html>
+    async function changeTemp(devId, newTemp, btnEl) {
+      if (newTemp < 4.5 || newTemp > 30.5) return;
+      
+      const targetLabel = document.getElementById(`set-val-${devId}`);
+      const oldText = targetLabel.innerText;
+      targetLabel.innerText = '...';
+
+      try {
+        const res = await fetch('/api/devices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ devId, temp: newTemp.toFixed(1) })
+        });
+
+        const data = await res.json();
+        if (data
