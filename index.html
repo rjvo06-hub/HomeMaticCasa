@@ -102,4 +102,19 @@
         });
 
         const data = await res.json();
-        if (data
+        if (data.success) {
+          targetLabel.innerText = `${newTemp.toFixed(1)} °C`;
+          setTimeout(loadDevices, 1500);
+        } else {
+          throw new Error(data.error);
+        }
+      } catch (e) {
+        alert(`Error al cambiar la temperatura: ${e.message}`);
+        targetLabel.innerText = oldText;
+      }
+    }
+
+    loadDevices();
+  </script>
+</body>
+</html>
